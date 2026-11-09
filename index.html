@@ -1,0 +1,424 @@
+<title>紹介料損益分岐シミュレーター</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: single-column scroll — 計算条件 → 損益分岐ラインのヒーローカード → ダイヤ別黒字/赤字一覧表。単一ライト配色で固定。 */
+  :root {
+    --ink: #15213B;
+    --ink-dim: #5C6A8C;
+    --bg: #F5F8FF;
+    --surface: #FFFFFF;
+    --border: #E1E7F7;
+    --accent: #1E6FD9;
+    --accent-deep: #123B82;
+    --good: #0DA66E; --good-bg: #E1FBF0;
+    --bad: #E0334F; --bad-bg: #FDE7EA;
+    --custom: #9333EA; --custom-bg: #F4E8FF;
+    --font-display: 'Zen Kaku Gothic New', 'Noto Sans JP', sans-serif;
+    --font-body: 'Noto Sans JP', 'Hiragino Sans', sans-serif;
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--font-body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    font-variant-numeric: tabular-nums;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding-block: 28px 60px; }
+
+  .topband {
+    height: 6px; border-radius: 6px;
+    background: linear-gradient(90deg, var(--accent-deep), var(--accent), var(--custom));
+    margin-bottom: 22px;
+  }
+
+  header.page-head { margin-bottom: 20px; }
+  .eyebrow { font-size: 11.5px; color: var(--ink-dim); letter-spacing: .06em; margin-bottom: 6px; font-weight: 700; }
+  h1 {
+    font-family: var(--font-display); font-size: clamp(22px, 4vw, 28px); margin: 0 0 6px; text-wrap: balance;
+    color: var(--accent-deep);
+  }
+  .lede { font-size: 13px; color: var(--ink-dim); line-height: 1.6; max-width: 65ch; }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(20, 40, 100, 0.05);
+  }
+  .panel h2 {
+    display: flex; align-items: center; gap: 9px;
+    font-family: var(--font-display); font-size: 16px; color: var(--accent-deep); margin: 0 0 4px;
+  }
+  .panel h2 .n {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 23px; height: 23px; min-width: 23px; border-radius: 50%; background: var(--accent-deep); color: #fff;
+    font-size: 12px; font-weight: 700;
+  }
+  .panel .hint { font-size: 12px; color: var(--ink-dim); margin: 0 0 14px; line-height: 1.55; }
+
+  .input-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 640px) { .input-grid { grid-template-columns: 1fr; } }
+  .field label { display: block; font-size: 11.5px; color: var(--ink-dim); margin-bottom: 6px; font-weight: 600; }
+  .field input[type="number"], .field select {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--bg); color: var(--ink); font-size: 14px; font-family: inherit;
+  }
+  .radio-row { display: flex; gap: 8px; }
+  .radio-chip {
+    flex: 1; text-align: center; border: 1px solid var(--border); border-radius: 7px; padding: 8px 6px;
+    font-size: 12.5px; cursor: pointer; color: var(--ink-dim);
+  }
+  .radio-chip input { display: none; }
+  .radio-chip.checked { background: #E8F1FE; border-color: var(--accent); color: var(--accent-deep); font-weight: 700; }
+
+  .diamond-field { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border); }
+  .diamond-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .diamond-row input[type="number"] {
+    width: 150px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--bg); color: var(--ink); font-size: 15px; font-weight: 700; font-family: inherit;
+  }
+  .diamond-row input[type="range"] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .preset-btn {
+    border: 1px solid var(--border); background: var(--bg); color: var(--ink-dim);
+    border-radius: 6px; padding: 4px 10px; font-size: 11.5px; cursor: pointer; font-family: inherit;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent-deep); }
+  .preset-btn.active { background: var(--accent-deep); border-color: var(--accent-deep); color: #fff; }
+
+  .live-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 640px) { .live-grid { grid-template-columns: 1fr; } }
+  .live-card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 14px 14px 16px; text-align: left;
+    border-top: 4px solid var(--card-c, var(--accent));
+  }
+  .live-card.c1 { --card-c: var(--accent); background: #EEF4FF; }
+  .live-card.c2 { --card-c: var(--good); background: var(--good-bg); }
+  .live-card.c3 { --card-c: var(--custom); background: var(--custom-bg); }
+  .live-card .lc-fee { font-size: 11.5px; font-weight: 700; color: var(--ink-dim); margin-bottom: 8px; }
+  .live-card .lc-status { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .live-card .lc-rev { font-family: var(--font-display); font-size: 19px; font-weight: 900; color: var(--card-c, var(--accent-deep)); }
+  .gauge-track { height: 9px; border-radius: 999px; background: rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 8px; position: relative; }
+  .gauge-fill { height: 100%; border-radius: 999px; transition: width .2s ease; }
+  .live-card .lc-note { font-size: 11px; color: var(--ink-dim); line-height: 1.5; }
+
+  tr.current-row td { background: #FFF6DD; font-weight: 700; }
+  tr.current-row td.lv::after { content: " ← 現在値"; font-size: 10.5px; color: var(--accent); font-weight: 400; }
+
+  .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 640px) { .hero-grid { grid-template-columns: 1fr; } }
+  .hero-card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 16px 14px; text-align: center;
+    border-top: 4px solid var(--card-c, var(--accent));
+  }
+  .hero-card.c1 { --card-c: var(--accent); background: #EEF4FF; }
+  .hero-card.c2 { --card-c: var(--good); background: var(--good-bg); }
+  .hero-card.c3 { --card-c: var(--custom); background: var(--custom-bg); }
+  .hero-card .hc-fee { font-size: 11.5px; font-weight: 700; color: var(--ink-dim); margin-bottom: 8px; }
+  .hero-card .hc-label { font-size: 11px; color: var(--ink-dim); margin-bottom: 4px; }
+  .hero-card .hc-value { font-family: var(--font-display); font-size: 26px; font-weight: 900; color: var(--card-c, var(--accent-deep)); line-height: 1.2; }
+  .hero-card .hc-sub { font-size: 11px; color: var(--ink-dim); margin-top: 6px; line-height: 1.5; }
+
+  .tbl-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 560px; }
+  th {
+    background: var(--accent-deep); color: #fff; padding: 9px 6px; text-align: center; font-size: 11.5px;
+    font-weight: 700; line-height: 1.3;
+  }
+  td { padding: 9px 6px; text-align: center; border-bottom: 1px solid var(--border); }
+  td.lv { text-align: left; font-weight: 700; }
+  td.yen { color: var(--accent-deep); font-weight: 700; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+  .badge.good { background: var(--good-bg); color: var(--good); }
+  .badge.bad { background: var(--bad-bg); color: var(--bad); }
+  .badge-diff { display: block; font-size: 10.5px; color: var(--ink-dim); font-weight: 400; margin-top: 2px; }
+
+  .formula-note {
+    font-size: 11.5px; color: var(--ink-dim); margin-top: 12px; line-height: 1.6;
+    border-left: 3px solid var(--border); padding-left: 10px;
+  }
+</style>
+
+<div class="wrap">
+  <div class="topband"></div>
+  <header class="page-head">
+    <h1>紹介料 損益分岐シミュレーター</h1>
+    <p class="lede">ライバーを紹介してもらう際に支払う紹介料を、事務所収益で何ダイヤから回収できるかを試算します。設定を変えると、損益分岐ラインが自動で更新されます。</p>
+  </header>
+
+  <section class="panel">
+    <h2><span class="n">▸</span>計算条件</h2>
+    <p class="hint">紹介したライバーの、当月のランク状況・アクティブレベルを想定して設定してください。</p>
+    <div class="input-grid">
+      <div class="field">
+        <label>ランク状況（当月基準）</label>
+        <div class="radio-row" id="rankOutcomeRow">
+          <label class="radio-chip checked"><input type="radio" name="rankOutcome" value="maintain" checked>維持</label>
+          <label class="radio-chip"><input type="radio" name="rankOutcome" value="up">アップ</label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="activeLv">アクティブレベル</label>
+        <select id="activeLv"></select>
+      </div>
+      <div class="field">
+        <label for="customFee">紹介料（カスタム／円）</label>
+        <input type="number" id="customFee" value="30000" step="1000" min="0">
+      </div>
+    </div>
+    <div class="diamond-field">
+      <label for="diamonds">当月ダイヤ数（動かして黒字・赤字の変化を確認）</label>
+      <div class="diamond-row">
+        <input type="number" id="diamonds" value="500000" step="10000" min="0">
+        <input type="range" id="diamondsRange" value="500000" step="10000" min="0" max="3000000">
+      </div>
+      <div class="presets" id="presetRow"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2><span class="n">1</span>このダイヤ数での損益（ライブ）</h2>
+    <p class="hint">上で設定したダイヤ数を基準に、紹介料ごとの黒字・赤字をリアルタイムで表示します。</p>
+    <div class="live-grid" id="liveGrid"></div>
+  </section>
+
+  <section class="panel">
+    <h2><span class="n">2</span>損益分岐ライン</h2>
+    <p class="hint">このダイヤ数に到達すると、事務所収益が紹介料を上回り黒字に切り替わります。</p>
+    <div class="hero-grid" id="heroGrid"></div>
+  </section>
+
+  <section class="panel">
+    <h2><span class="n">3</span>ダイヤ数別 黒字・赤字一覧</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th style="text-align:left;">当月ダイヤ数</th><th>事務所収益</th><th>紹介料2万円の場合</th><th>紹介料5万円の場合</th><th id="customTh">カスタムの場合</th></tr></thead>
+        <tbody id="levelBody"></tbody>
+      </table>
+    </div>
+    <div class="formula-note">※事務所収益は、ランクアップ・アクティブ報酬の合算で試算しています（事務所全体にかかるレベニューボーナスは含みません）。</div>
+  </section>
+</div>
+
+<script>
+(function(){
+  const K = 0.95364;
+  const SCALE = 100 / 60; // 60%ベース→100%ベースへの換算
+  const ACTIVE_RATE_PER_DIAMOND = {1:0.004768, 2:0.0095362, 3:0.0190724, 4:0.0286086, 5:0.0381448};
+  const ACTIVE_TABLE = [
+    {lv:1, rate:0.5, days:8,  hours:25},
+    {lv:2, rate:1,   days:15, hours:45},
+    {lv:3, rate:2,   days:18, hours:70},
+    {lv:4, rate:3,   days:20, hours:90},
+    {lv:5, rate:4,   days:22, hours:110},
+  ];
+  const RANK_TABLE = [
+    {id:'R1',  floor:0,       maintain:0,   up:6.5},
+    {id:'R2',  floor:100000,  maintain:0,   up:6.5},
+    {id:'R3',  floor:200000,  maintain:2.5, up:4.5},
+    {id:'R4',  floor:300000,  maintain:2.5, up:4.5},
+    {id:'R5',  floor:500000,  maintain:2.5, up:4.5},
+    {id:'R6',  floor:1000000, maintain:2.5, up:4.5},
+    {id:'R7',  floor:1600000, maintain:2.5, up:4.5},
+    {id:'R8',  floor:3000000, maintain:2.0, up:3.0},
+    {id:'R9',  floor:5000000, maintain:2.0, up:3.0},
+    {id:'R10', floor:8000000, maintain:2.0, up:0},
+  ];
+  const DIAMOND_PRESETS = [100000,200000,300000,500000,700000,1000000,1500000,2000000,3000000];
+
+  function rankFor(d){
+    let r = RANK_TABLE[0];
+    for (const row of RANK_TABLE){ if (d >= row.floor) r = row; }
+    return r;
+  }
+  function bracketRate(row, outcome, lv){
+    const pct = outcome === 'up' ? row.up : row.maintain;
+    return (pct/100*K + ACTIVE_RATE_PER_DIAMOND[lv]) * SCALE; // 円/ダイヤ（100%換算）
+  }
+  function officeRevenue100(d, lv, outcome){
+    const row = rankFor(d);
+    return d * bracketRate(row, outcome, lv);
+  }
+  function breakeven(fee, lv, outcome){
+    if (fee <= 0) return 0;
+    for (let i = 0; i < RANK_TABLE.length; i++){
+      const row = RANK_TABLE[i];
+      const next = RANK_TABLE[i+1];
+      const rangeStart = row.floor;
+      const rangeEnd = next ? next.floor : Infinity;
+      const rate = bracketRate(row, outcome, lv);
+      if (rate <= 0) continue;
+      const revAtStart = rangeStart * rate;
+      if (revAtStart >= fee) return rangeStart;
+      const dSolve = fee / rate;
+      if (dSolve >= rangeStart && dSolve < rangeEnd) return Math.ceil(dSolve / 100) * 100;
+    }
+    return null;
+  }
+  function yen(n){ return '¥' + Math.round(n).toLocaleString('ja-JP'); }
+  function diamondLabel(d){
+    if (d === null) return '―';
+    if (d >= 1000000) {
+      const m = d/1000000;
+      const s = Number.isInteger(m) ? String(m) : m.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+      return s + 'M';
+    }
+    if (d >= 1000) return (d/1000).toLocaleString('ja-JP', {maximumFractionDigits:1}) + 'K';
+    return String(d);
+  }
+  function diamondFull(d){
+    if (d === null) return '―';
+    return d.toLocaleString('ja-JP') + ' 枚';
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const activeLvSel = $('activeLv');
+  const customFeeInput = $('customFee');
+  const diamondsInput = $('diamonds');
+  const diamondsRange = $('diamondsRange');
+  const presetRow = $('presetRow');
+  const heroGrid = $('heroGrid');
+  const liveGrid = $('liveGrid');
+  const levelBody = $('levelBody');
+  const customTh = $('customTh');
+
+  ACTIVE_TABLE.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.lv;
+    opt.textContent = `Lv${a.lv}（${a.rate}%・${a.days}日/${a.hours}h）`;
+    if (a.lv === 5) opt.selected = true;
+    activeLvSel.appendChild(opt);
+  });
+
+  const DIAMOND_PRESET_BTNS = [100000,300000,500000,700000,1000000,1500000,2000000,3000000];
+  DIAMOND_PRESET_BTNS.forEach(d => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'preset-btn';
+    btn.textContent = diamondLabel(d);
+    btn.addEventListener('click', () => {
+      diamondsInput.value = d;
+      diamondsRange.value = Math.min(d, Number(diamondsRange.max));
+      render();
+    });
+    presetRow.appendChild(btn);
+  });
+
+  document.querySelectorAll('input[name="rankOutcome"]').forEach(r => {
+    r.addEventListener('change', () => {
+      document.querySelectorAll('#rankOutcomeRow .radio-chip').forEach(c => c.classList.remove('checked'));
+      r.closest('.radio-chip').classList.add('checked');
+      render();
+    });
+  });
+  activeLvSel.addEventListener('change', render);
+  customFeeInput.addEventListener('input', render);
+  diamondsInput.addEventListener('input', () => {
+    const v = Math.max(0, Number(diamondsInput.value) || 0);
+    diamondsRange.value = Math.min(v, Number(diamondsRange.max));
+    render();
+  });
+  diamondsRange.addEventListener('input', () => {
+    diamondsInput.value = diamondsRange.value;
+    render();
+  });
+
+  function currentSettings(){
+    const outcome = document.querySelector('input[name="rankOutcome"]:checked').value;
+    const lv = Number(activeLvSel.value);
+    const customFee = Math.max(0, Number(customFeeInput.value) || 0);
+    const diamonds = Math.max(0, Number(diamondsInput.value) || 0);
+    return { outcome, lv, customFee, diamonds };
+  }
+
+  function heroCard(cls, feeLabel, fee, lv, outcome){
+    const d = breakeven(fee, lv, outcome);
+    return `<div class="hero-card ${cls}">
+      <div class="hc-fee">紹介料 ${feeLabel}</div>
+      <div class="hc-label">損益分岐ダイヤ数</div>
+      <div class="hc-value">${diamondLabel(d)}</div>
+      <div class="hc-sub">${diamondFull(d)}を超えると黒字</div>
+    </div>`;
+  }
+
+  function cellFor(rev, fee){
+    if (!fee) return '<span class="badge" style="background:var(--border);color:var(--ink-dim);">未設定</span>';
+    const diff = rev - fee;
+    const cls = diff >= 0 ? 'good' : 'bad';
+    const label = diff >= 0 ? '黒字' : '赤字';
+    return `<span class="badge ${cls}">${label}</span><span class="badge-diff">${diff >= 0 ? '+' : ''}${yen(diff)}</span>`;
+  }
+
+  function liveCard(cls, feeLabel, fee, rev, breakD, diamonds){
+    const diff = rev - fee;
+    const isGood = fee > 0 && diff >= 0;
+    const noFee = !fee;
+    const pct = (fee > 0) ? Math.min(100, (rev / fee) * 100) : 0;
+    const fillColor = noFee ? 'var(--border)' : (isGood ? 'var(--good)' : 'var(--bad)');
+    const statusHtml = noFee
+      ? '<span class="badge" style="background:var(--border);color:var(--ink-dim);">金額未入力</span>'
+      : `<span class="badge ${isGood ? 'good' : 'bad'}">${isGood ? '黒字' : '赤字'}</span>`;
+    let note;
+    if (noFee) {
+      note = 'カスタム紹介料を入力してください。';
+    } else if (isGood) {
+      note = `損益分岐（${diamondFull(breakD)}）を超えています（${diff >= 0 ? '+' : ''}${yen(diff)}）。`;
+    } else {
+      const remaining = Math.max(0, (breakD ?? 0) - diamonds);
+      note = `損益分岐（${diamondFull(breakD)}）まであと ${diamondFull(remaining)}。`;
+    }
+    return `<div class="live-card ${cls}">
+      <div class="lc-fee">紹介料 ${feeLabel}</div>
+      <div class="lc-status">${statusHtml}<span class="lc-rev">${yen(rev)}</span></div>
+      <div class="gauge-track"><div class="gauge-fill" style="width:${pct}%;background:${fillColor};"></div></div>
+      <div class="lc-note">${note}</div>
+    </div>`;
+  }
+
+  function render(){
+    const { outcome, lv, customFee, diamonds } = currentSettings();
+    const currentRev = officeRevenue100(diamonds, lv, outcome);
+
+    heroGrid.innerHTML =
+      heroCard('c1', '2万円', 20000, lv, outcome) +
+      heroCard('c2', '5万円', 50000, lv, outcome) +
+      heroCard('c3', customFee ? yen(customFee) : 'カスタム未入力', customFee, lv, outcome);
+
+    liveGrid.innerHTML =
+      liveCard('c1', '2万円', 20000, currentRev, breakeven(20000, lv, outcome), diamonds) +
+      liveCard('c2', '5万円', 50000, currentRev, breakeven(50000, lv, outcome), diamonds) +
+      liveCard('c3', customFee ? yen(customFee) : 'カスタム', customFee, currentRev, customFee ? breakeven(customFee, lv, outcome) : null, diamonds);
+
+    customTh.textContent = customFee ? `紹介料${yen(customFee)}の場合` : 'カスタムの場合';
+
+    const presetRows = DIAMOND_PRESETS.filter(d => d !== diamonds).map(d => {
+      const rev = officeRevenue100(d, lv, outcome);
+      return `<tr>
+        <td class="lv">${diamondLabel(d)}（${d.toLocaleString('ja-JP')}）</td>
+        <td class="yen">${yen(rev)}</td>
+        <td>${cellFor(rev, 20000)}</td>
+        <td>${cellFor(rev, 50000)}</td>
+        <td>${cellFor(rev, customFee)}</td>
+      </tr>`;
+    });
+
+    const currentRow = `<tr class="current-row">
+      <td class="lv">${diamondLabel(diamonds)}（${diamonds.toLocaleString('ja-JP')}）</td>
+      <td class="yen">${yen(currentRev)}</td>
+      <td>${cellFor(currentRev, 20000)}</td>
+      <td>${cellFor(currentRev, 50000)}</td>
+      <td>${cellFor(currentRev, customFee)}</td>
+    </tr>`;
+
+    levelBody.innerHTML = currentRow + presetRows.join('');
+
+    document.querySelectorAll('.preset-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', DIAMOND_PRESET_BTNS[i] === diamonds);
+    });
+  }
+
+  render();
+})();
+</script>
